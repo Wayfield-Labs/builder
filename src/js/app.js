@@ -1,4 +1,4 @@
-let MODEL = 'claude-opus-5-5';
+let MODEL = (window.PLINTHRA && window.PLINTHRA.defaultModel()) || 'claude-opus-5-5';
 let system_prompt
 let chatHistory;
 let currentAppDir;

@@ -36,6 +36,9 @@ let OUT_DIR = path.resolve(__dirname, 'dist');
 // import/export), so the bundle MUST keep that order and stay a classic,
 // non-module script — see classicBundle() below.
 const SCRIPTS = [
+  // Plinthra fork config (Celestial → Puter model map). Must load before the
+  // app bundle so window.PLINTHRA exists when app.js reads its model.
+  'js/plinthra.js',
   'js/helpers.js',
   // Shared with the marketing pages (inlined there by seoPagesPlugin): the
   // composer handoff store both sides read and write.
