@@ -2,7 +2,10 @@
  * Plinthra ⇄ Builder bridge client (classic script, loaded before the app).
  *
  * Lets the Builder run Plinthra's Pro Celestials (Cloudflare Workers AI, metered
- * in Photons) in addition to the free Puter models. Exposes:
+ * in Photons) in addition to the free Puter models, and select which Celestial
+ * to use.
+ *
+ * Exposes:
  *   window.PLINTHRA_BRIDGE.connect()          open the connect popup
  *   window.PLINTHRA_BRIDGE.enabled()          true once a token is stored
  *   window.PLINTHRA_BRIDGE.chat(msgs, opts)   streaming async-iterable of chunks
@@ -11,24 +14,28 @@
 (function () {
   'use strict';
 
-  var BRIDGE_URL = window.PLINTHRA_BRIDGE_URL || 'https://plinthra-staging.emjay-74c.workers.dev/api/builder/chat';
-  var CONNECT_URL = window.PLINTHRA_CONNECT_URL || 'https://plinthra-staging.emjay-74c.workers.dev/builder/connect';
+  var BRIDGE_URL = window.PLINTHRA_BRIDGE_URL || 'https://plinthra.com/api/builder/chat';
+  var CONNECT_URL = window.PLINTHRA_CONNECT_URL || 'https://plinthra.com/builder/connect';
   var KEY = 'plinthra_bridge_token';
   var token = null;
   try { token = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
 
   function enabled() { return !!token; }
+  function celestial() {
+    return (window.PLINTHRA && window.PLINTHRA.current && window.PLINTHRA.current()) || 'lyra';
+  }
+  function celestialObj(key) {
+    return (window.PLINTHRA && window.PLINTHRA.get && window.PLINTHRA.get(key || celestial())) || null;
+  }
 
   function setToken(t) {
     token = t || null;
     try { if (token) localStorage.setItem(KEY, token); else localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
-    updateButton();
+    updateUI();
     window.dispatchEvent(new CustomEvent('plinthra-bridge-changed', { detail: { enabled: enabled() } }));
   }
 
   function connect() {
-    // Popup: /builder/connect verifies the Plinthra session, mints a bridge
-    // token, and postMessages it back to this window.
     window.open(CONNECT_URL, 'plinthra_connect', 'width=460,height=560,menubar=no,toolbar=no');
   }
 
@@ -38,11 +45,11 @@
 
   async function chat(messages, opts) {
     opts = opts || {};
-    var celestial = opts.celestial || (window.PLINTHRA && window.PLINTHRA.current && window.PLINTHRA.current()) || 'andromeda';
+    var key = opts.celestial || celestial();
     var res = await fetch(BRIDGE_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ messages: messages, tools: opts.tools || window.tools || [], celestial: celestial }),
+      body: JSON.stringify({ messages: messages, tools: opts.tools || window.tools || [], celestial: key }),
       signal: opts.signal,
     });
     if (!res.ok) {
@@ -70,33 +77,72 @@
     })();
   }
 
-  // ---- Minimal connect affordance (fixed pill, avoids touching Builder UI) ----
-  function updateButton() {
-    var b = document.getElementById('plinthra-bridge-btn');
-    if (!b) return;
-    b.textContent = enabled() ? 'Plinthra Pro ✓' : 'Connect Plinthra';
-    b.style.borderColor = enabled() ? 'rgba(255,122,51,0.6)' : 'rgba(255,255,255,0.14)';
-    b.style.color = enabled() ? '#ff9a5c' : '#9aa4b2';
+  // ---- Minimal control: Celestial picker + connect toggle --------------------
+  function updateUI() {
+    var btn = document.getElementById('plinthra-bridge-btn');
+    var sel = document.getElementById('plinthra-celestial');
+    if (btn) {
+      btn.textContent = enabled() ? 'Plinthra ✓' : 'Connect';
+      btn.style.borderColor = enabled() ? 'rgba(255,122,51,0.6)' : 'rgba(255,255,255,0.14)';
+      btn.style.color = enabled() ? '#ff9a5c' : '#9aa4b2';
+    }
+    if (sel && window.PLINTHRA) {
+      var cur = celestial();
+      if (sel.value !== cur) sel.value = cur;
+    }
   }
-  function injectButton() {
-    if (document.getElementById('plinthra-bridge-btn')) return;
-    var b = document.createElement('button');
-    b.id = 'plinthra-bridge-btn';
-    b.type = 'button';
-    b.title = 'Run Pro Celestials (Horizon, Singularity, Andromeda) through Plinthra, metered in Photons';
-    b.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:2147483000;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,0.14);background:rgba(10,14,22,0.86);color:#9aa4b2;font:600 12px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;cursor:pointer;backdrop-filter:blur(8px)';
-    b.addEventListener('click', function () { if (enabled()) setToken(null); else connect(); });
-    document.body.appendChild(b);
-    updateButton();
+  function injectUI() {
+    if (document.getElementById('plinthra-bridge-ui')) return;
+    var wrap = document.createElement('div');
+    wrap.id = 'plinthra-bridge-ui';
+    wrap.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:2147483000;display:flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.14);background:rgba(10,14,22,0.86);backdrop-filter:blur(8px);font:600 12px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif';
+    var sel = document.createElement('select');
+    sel.id = 'plinthra-celestial';
+    sel.title = 'Celestial (free models run via Puter; Pro run via Plinthra, metered in Photons)';
+    sel.style.cssText = 'background:transparent;border:0;color:#cbd5e1;font:600 12px/1 inherit;outline:none;cursor:pointer';
+    var list = (window.PLINTHRA && window.PLINTHRA.list && window.PLINTHRA.list()) || [];
+    for (var i = 0; i < list.length; i++) {
+      var c = list[i];
+      var o = document.createElement('option');
+      o.value = c.key;
+      o.textContent = c.symbol + ' ' + c.name + ' · ' + (c.tier === 'free' ? 'free' : 'Pro');
+      o.style.color = '#0b1220';
+      sel.appendChild(o);
+    }
+    sel.value = celestial();
+    sel.addEventListener('change', function () {
+      if (window.PLINTHRA && window.PLINTHRA.set) window.PLINTHRA.set(sel.value);
+      var obj = celestialObj(sel.value);
+      if (obj && obj.tier !== 'free' && !enabled()) connect();
+      updateUI();
+    });
+    var btn = document.createElement('button');
+    btn.id = 'plinthra-bridge-btn';
+    btn.type = 'button';
+    btn.title = 'Connect Plinthra to run Pro Celestials (Horizon, Singularity, Andromeda) metered in Photons';
+    btn.style.cssText = 'padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,0.14);background:transparent;font:600 12px/1 inherit;cursor:pointer';
+    btn.addEventListener('click', function () { if (enabled()) setToken(null); else connect(); });
+    wrap.appendChild(sel);
+    wrap.appendChild(btn);
+    document.body.appendChild(wrap);
+    updateUI();
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectButton);
-  else injectButton();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectUI);
+  else injectUI();
 
   window.PLINTHRA_BRIDGE = { enabled: enabled, setToken: setToken, connect: connect, chat: chat, getToken: function () { return token; } };
 
-  // Transport switch: Pro bridge when connected, otherwise the free Puter path.
+  // Transport switch: Pro Celestials go through Plinthra when connected;
+  // everything else (free Celestials, or Pro with no connection) runs on the
+  // free Puter model for the selected Celestial.
   window.aiChat = function (messages, opts) {
-    if (enabled() && window.PLINTHRA_BRIDGE) return window.PLINTHRA_BRIDGE.chat(messages, opts);
+    opts = opts || {};
+    var key = celestial();
+    var cel = celestialObj(key);
+    var isPro = cel && cel.tier !== 'free';
+    if (enabled() && isPro) return window.PLINTHRA_BRIDGE.chat(messages, Object.assign({}, opts, { celestial: key }));
+    // Free path — use the selected Celestial's free Puter model.
+    if (window.PLINTHRA && window.PLINTHRA.resolveModel) opts.model = window.PLINTHRA.resolveModel(key);
     return puter.ai.chat(messages, opts);
   };
 })();
