@@ -4534,7 +4534,7 @@ async function sendChatMessage(userInput = null, skipAddToHistory = false, opts 
                 // The SDK ignores the signal option, so the open is raced
                 // against the signal locally (abortableAwait) — otherwise an
                 // abort couldn't unstick a connection that dies mid-open.
-                const stream = await abortableAwait(puter.ai.chat(prepareHistoryForAI(turnSaveContext.chatHistory), {
+                const stream = await abortableAwait(aiChat(prepareHistoryForAI(turnSaveContext.chatHistory), {
                     model: MODEL,
                     tools: turnTools,
                     stream: true,

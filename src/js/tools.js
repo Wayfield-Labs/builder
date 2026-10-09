@@ -208,7 +208,7 @@ async function handleToolCalls(completion, isTopLevel = false, c) {
     // and feeding the wrong conversation to the model here would corrupt the turn.
     // abortableAwait: the SDK ignores the signal option, so the open must be
     // raced against the signal locally or an abort can't unstick a dead open.
-    const stream = await abortableAwait(puter.ai.chat(prepareHistoryForAI(c.chatHistory), {
+    const stream = await abortableAwait(aiChat(prepareHistoryForAI(c.chatHistory), {
         model: MODEL,
         tools: c.tools || window.tools,
         stream: true,

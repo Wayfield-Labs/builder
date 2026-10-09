@@ -39,6 +39,9 @@ const SCRIPTS = [
   // Plinthra fork config (Celestial → Puter model map). Must load before the
   // app bundle so window.PLINTHRA exists when app.js reads its model.
   'js/plinthra.js',
+  // Plinthra ⇄ Builder bridge: Pro Celestials via the Plinthra worker. Defines
+  // window.PLINTHRA_BRIDGE and window.aiChat (the transport switch).
+  'js/plinthra-bridge.js',
   'js/helpers.js',
   // Shared with the marketing pages (inlined there by seoPagesPlugin): the
   // composer handoff store both sides read and write.
